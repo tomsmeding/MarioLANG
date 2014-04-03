@@ -22,7 +22,7 @@ This is an interpreter for the language by Tom Smeding.
 
 using namespace std;
 
-int debuglevel;
+int debuglevel,animatedelay;
 bool animate;
 
 char getch(){char b=0;struct termios o={0};fflush(stdout);if(tcgetattr(0,&o)<0)
@@ -50,6 +50,7 @@ typedef struct{
 class Level{
 	negvector<int> memory;
 	vector<string> code;
+	int outputx,outputy;
 public:
 	Level(void){Level(cin);}
 	Level(ifstream &cf){
@@ -174,7 +175,7 @@ public:
 		default:break;
 		}
 		if(animate){
-			usleep(250000);
+			usleep(animatedelay);
 			cout<<"\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H"<<code[m->ipy][m->ipx]<<"\x1B["<<code.size()+1<<";1H"<<flush;
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1+(code[m->ipy+1][m->ipx]=='^')<<";"<<m->ipx+1<<"H"<<code[m->ipy+(code[m->ipy+1][m->ipx]=='^')][m->ipx]<<"\x1B[u"<<flush;
@@ -192,6 +193,8 @@ public:
 		if(animate){
 			cout<<"\x1B[1J\x1B[1;1H";
 			print();
+			outputx=0;
+			outputy=code.size()+1;
 		}
 		while(execcommand(m));
 	}
@@ -206,9 +209,11 @@ int main(int argc,char **argv){
 		cerr<<"\t   1: Show errors."<<endl;
 		cerr<<"\t   2: Plus one debug line per command."<<endl;
 		cerr<<"\t   3: Frantic. Useless. Plus extra information per executed command."<<endl;
+		cerr<<"\t-w usecs  Sets the delay between commands in microseconds if animating. Useless otherwise."<<endl;
 		return 0;
 	}
 	debuglevel=0;
+	animatedelay=250000;
 	animate=false;
 	int i,j;
 	bool skipNextArg=false;
@@ -218,6 +223,7 @@ int main(int argc,char **argv){
 			for(j=1;argv[i][j]!='\0';j++){
 				if(argv[i][j]=='a')animate=true;
 				else if(argv[i][j]=='d'){debuglevel=strtol(argv[i+1],NULL,10);skipNextArg=true;}
+				else if(argv[i][j]=='w'){animatedelay=strtol(argv[i+1],NULL,10);skipNextArg=true;}
 				else {cerr<<"Unrecognised option "<<argv[i][j]<<endl;return 0;}
 			}
 		} else {
