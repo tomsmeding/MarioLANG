@@ -8,6 +8,7 @@ This is an interpreter for the language by Tom Smeding.
 #include <fstream>
 #include <vector>
 #include <string>
+#include <climits>
 #include <termios.h>
 #include <unistd.h>
 
@@ -24,7 +25,9 @@ This is an interpreter for the language by Tom Smeding.
 using namespace std;
 
 int debuglevel,animatedelay;
-bool animate;
+bool animate,animateShowTape;
+
+template<class T>class negvector;
 
 char getch(){char b=0;struct termios o={0};fflush(stdout);if(tcgetattr(0,&o)<0)
 perror("tcsetattr()");o.c_lflag&=~ICANON;o.c_lflag&=~ECHO;o.c_cc[VMIN]=1;o.c_cc[
@@ -34,6 +37,13 @@ o)<0)perror("tcsetattr ~ICANON");return b;}
 
 void moveto(int x,int y){
 	cout<<"\x1B["<<y+1<<";"<<x+1<<"H"<<flush;
+}
+
+void drawTape(negvector<int> &mem,int tapex){
+	static int minidx=INT_MIN,maxidx=INT_MIN;
+	/*if INT_MIN, then detect bounds
+	 *else, go draw stuff.
+	 */
 }
 
 template<class T>class negvector{
@@ -55,7 +65,7 @@ typedef struct{
 class Level{
 	negvector<int> memory;
 	vector<string> code;
-	int outputx,outputy,inputy;
+	int outputx,outputy,inputy,tapex;
 public:
 	Level(void){Level(cin);}
 	Level(ifstream &cf){
@@ -74,7 +84,7 @@ public:
 		vector<string>::const_iterator it;
 		for(it=code.begin();it!=code.end();it++)cout<<*it<<endl;
 	}
-	bool execcommand(mario *m){
+	bool execcommandStep(mario *m){
 		SHOW_MESSAGE("EC\tinstr="<<code[m->ipy][m->ipx]<<"\tip="<<m->ipx<<","<<m->ipy<<"\tmemp="<<m->memp<<"\tmem[memp]="<<memory[m->memp]<<"\tdir="<<m->dir<<"\twalking="<<m->walking<<"\tskip="<<m->skip);
 		/*if(m->ipx<0||m->ipx>=code[m->ipy].size()){
 			ERROR_FALSE("Mario walked out of the world.");
@@ -84,14 +94,14 @@ public:
 			&&code[m->ipy+1][m->ipx]!='|'
 			&&code[m->ipy+1][m->ipx]!='#'
 			&&code[m->ipy+1][m->ipx]!='"'){
-			execcommandSwitch(m);
+			execcommandSingle(m);
 			m->ipy++;
 		}
 		if(m->ipy==code.size()-1)ERROR_FALSE("Mario fell out of the world.");
 		if(code[m->ipy+1][m->ipx]=='#'&&!m->walking){
 			m->ipy--;
 			while(m->ipy!=0&&code[m->ipy][m->ipx]!='"'){
-				execcommandSwitch(m);
+				execcommandSingle(m);
 				m->ipy--;
 			}
 			m->ipy--;
@@ -110,7 +120,7 @@ public:
 				else ERROR_FALSE("Mario walked out of the world.");
 			} else ERROR_FALSE("The world glitched.");
 		} else {
-			if(!execcommandSwitch(m))return false;
+			if(!execcommandSingle(m))return false;
 			if(m->walking){
 				if(m->dir==DIRRIGHT){
 					if(m->ipx<code[m->ipy].size()-1)m->ipx++;
@@ -123,7 +133,7 @@ public:
 		}
 		return true;
 	}
-	bool execcommandSwitch(mario *m){
+	bool execcommandSingle(mario *m){
 		int ret;
 		char c;
 		SHOW_DEBUG("ECS at "<<m->ipx<<","<<m->ipy<<": '"<<code[m->ipy][m->ipx]<<"'");
@@ -224,6 +234,7 @@ public:
 			moveto(m->ipx,m->ipy);
 			cout<<code[m->ipy][m->ipx]<<flush;
 			moveto(outputx,outputy);
+			if(animateShowTape)drawTape(memory,tapex);
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1+(code[m->ipy+1][m->ipx]=='^')<<";"<<m->ipx+1<<"H"<<code[m->ipy+(code[m->ipy+1][m->ipx]=='^')][m->ipx]<<"\x1B[u"<<flush;
 		return true;
@@ -244,26 +255,29 @@ public:
 			inputy=code.size(); //input comes first line under the code in animation mode
 			outputx=0;
 			outputy=inputy+1; //output comes directly under the input line
+			tapex=code[0].size()+1; //tape comes to the right of the code
 		}
-		while(execcommand(m));
+		while(execcommandStep(m));
 	}
 };
 
 int main(int argc,char **argv){
 	if(argc==1){
 		cerr<<"Usage: "<<argv[0]<<" [-a] [-d level] <file>"<<endl;
-		cerr<<"\t-a        Turn on animation mode."<<endl;
-		cerr<<"\t-d level  Set debug level to 'level', where 'level' can be:"<<endl;
-		cerr<<"\t   0: No debug output. Default."<<endl;
-		cerr<<"\t   1: Show errors."<<endl;
-		cerr<<"\t   2: Plus one debug line per command."<<endl;
-		cerr<<"\t   3: Frantic. Useless. Plus extra information per executed command."<<endl;
-		cerr<<"\t-w usecs  Sets the delay between commands in microseconds if animating. Useless otherwise."<<endl;
+		cerr<<"\t-a        Turn on \x1B[46ma\x1B[0mnimation mode."<<endl;
+		cerr<<"\t-d level  Set \x1B[46md\x1B[0mebug level to 'level', where 'level' can be:"<<endl;
+		cerr<<"\t             0: No debug output. Default."<<endl;
+		cerr<<"\t             1: Show errors."<<endl;
+		cerr<<"\t             2: Plus one debug line per command."<<endl;
+		cerr<<"\t             3: Frantic. Useless. Adds even more shit per executed command."<<endl;
+		cerr<<"\t-T        Show the \x1B[46mT\x1B[0mape in animation mode."<<endl;
+		cerr<<"\t-w usecs  Sets the time to \x1B[46mw\x1B[0mait between commands in microseconds if animating. Useless otherwise."<<endl;
 		return 0;
 	}
 	debuglevel=0;
 	animatedelay=250000;
 	animate=false;
+	animateShowTape=false;
 	int i,j;
 	bool skipNextArg=false;
 	for(i=1;i<argc-1;i++){
@@ -272,6 +286,7 @@ int main(int argc,char **argv){
 			for(j=1;argv[i][j]!='\0';j++){
 				if(argv[i][j]=='a')animate=true;
 				else if(argv[i][j]=='d'){debuglevel=strtol(argv[i+1],NULL,10);skipNextArg=true;}
+				else if(argv[i][j]=='T')animateShowTape=true;
 				else if(argv[i][j]=='w'){animatedelay=strtol(argv[i+1],NULL,10);skipNextArg=true;}
 				else {cerr<<"Unrecognised option "<<argv[i][j]<<endl;return 0;}
 			}
