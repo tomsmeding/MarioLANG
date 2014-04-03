@@ -15,10 +15,11 @@ This is an interpreter for the language by Tom Smeding.
 #define SHOW_ERROR(s) {if(debuglevel>=1)cerr<<"\x1B[31m"<<s<<"\x1B[0m"<<endl;}
 #define SHOW_MESSAGE(s) {if(debuglevel>=2)cerr<<"\x1B[36m"<<s<<"\x1B[0m"<<endl;}
 #define SHOW_DEBUG(s) {if(debuglevel>=3)cerr<<"\x1B[37m"<<s<<"\x1B[0m"<<endl;}
-#define DIRRIGHT 0
-#define DIRUP 1
-#define DIRLEFT 2
-#define DIRNONE 3
+#define DIRRIGHT (0)
+#define DIRUP (1)
+#define DIRLEFT (2)
+#define DIRNONE (3)
+#define TABWIDTH (8)
 
 using namespace std;
 
@@ -30,6 +31,10 @@ perror("tcsetattr()");o.c_lflag&=~ICANON;o.c_lflag&=~ECHO;o.c_cc[VMIN]=1;o.c_cc[
 VTIME]=0;if(tcsetattr(0,TCSANOW,&o)<0)perror("tcsetattr ICANON");if(read(0,&b,1)
 <0)perror("read()");o.c_lflag|=ICANON;o.c_lflag|=ECHO;if(tcsetattr(0,TCSADRAIN,&
 o)<0)perror("tcsetattr ~ICANON");return b;}
+
+void moveto(int x,int y){
+	cout<<"\x1B["<<y+1<<";"<<x+1<<"H"<<flush;
+}
 
 template<class T>class negvector{
 	vector<T> pos,neg;
@@ -50,7 +55,7 @@ typedef struct{
 class Level{
 	negvector<int> memory;
 	vector<string> code;
-	int outputx,outputy;
+	int outputx,outputy,inputy;
 public:
 	Level(void){Level(cin);}
 	Level(ifstream &cf){
@@ -119,8 +124,14 @@ public:
 		return true;
 	}
 	bool execcommandSwitch(mario *m){
+		int ret;
+		char c;
 		SHOW_DEBUG("ECS at "<<m->ipx<<","<<m->ipy<<": '"<<code[m->ipy][m->ipx]<<"'");
-		if(animate)cout<<"\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B["<<code.size()+1<<";1H"<<flush;
+		if(animate){
+			moveto(m->ipx,m->ipy);
+			cout<<"\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m"<<flush;
+			moveto(outputx,outputy);
+		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B[u"<<flush;
 		switch(code[m->ipy][m->ipx]){
 		case '=': case '|': case '#': case '"':
@@ -128,23 +139,54 @@ public:
 		case ')':
 			m->memp++;
 			if(m->memp>memory.sizepos()-1){
-				fputc(')',stderr);getch();
+				SHOW_MESSAGE("Resizing memory to the right...");
 				memory.resizepos(memory.sizepos()*2);
 			}
 			break;
 		case '(':
 			m->memp--;
 			if(m->memp<-memory.sizeneg()){
-				fputc('(',stderr);getch();
+				SHOW_MESSAGE("Resizing memory to the left...");
 				memory.resizeneg(memory.sizeneg()*2);
 			}
 			break;
-		case '+':memory[m->memp]++;break;
-		case '-':memory[m->memp]--;break;
-		case '.':putchar(memory[m->memp]);break;
-		case ':':printf("%d ",memory[m->memp]);break;
-		case ',':memory[m->memp]=getch();cout<<memory[m->memp];break;
-		case ';':scanf("%d",&memory[m->memp]);break;
+		case '+':
+			memory[m->memp]++;
+			break;
+		case '-':
+			memory[m->memp]--;
+			break;
+		case '.':
+			if(animate){
+				c=memory[m->memp];
+				if(c=='\r')outputx=0;
+				else if(c=='\n'){outputx=0;outputy++;}
+				else if(c=='\t'){outputx=TABWIDTH*(outputx/TABWIDTH+1);}
+				else if(c<32){printf("^%c",'@'+c);outputx+=2;}
+				else if(c==127){printf("^?");outputx+=2;}
+				else {putchar(c);outputx++;}
+			} else putchar(memory[m->memp]);
+			break;
+		case ':':
+			ret=printf("%d ",memory[m->memp]);
+			if(ret<0)ERROR_FALSE("FATAL: IO error, printf returned a negative value!");
+			outputx+=ret;
+			break;
+		case ',':
+			if(animate){
+				moveto(0,inputy);
+				cout<<"\x1B[34;1mInput?\x1B[0m "<<flush;
+			}
+			memory[m->memp]=getch();
+			if(animate){
+				cout<<"\x1B[2K"<<flush;
+				moveto(outputx,outputy);
+			}
+			SHOW_MESSAGE("Read input: char "<<memory[m->memp]);
+			break;
+		case ';':
+			scanf("%d",&memory[m->memp]);
+			break;
 		case '>':
 			m->dir=DIRRIGHT;
 			m->walking=true;
@@ -167,16 +209,21 @@ public:
 		case '!':
 			m->walking=false;m->dir=DIRNONE;
 			break;
-		case '[':if(memory[m->memp]==0)m->skip=true;break;
+		case '[':
+			if(memory[m->memp]==0)m->skip=true;
+			break;
 		case '@':
 			if(m->dir==DIRRIGHT)m->dir=DIRLEFT;
 			else if(m->dir==DIRLEFT)m->dir=DIRRIGHT;
 			else ERROR_FALSE("The world glitched.");
-		default:break;
+		default:
+			break;
 		}
 		if(animate){
 			usleep(animatedelay);
-			cout<<"\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H"<<code[m->ipy][m->ipx]<<"\x1B["<<code.size()+1<<";1H"<<flush;
+			moveto(m->ipx,m->ipy);
+			cout<<code[m->ipy][m->ipx]<<flush;
+			moveto(outputx,outputy);
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1+(code[m->ipy+1][m->ipx]=='^')<<";"<<m->ipx+1<<"H"<<code[m->ipy+(code[m->ipy+1][m->ipx]=='^')][m->ipx]<<"\x1B[u"<<flush;
 		return true;
@@ -191,10 +238,12 @@ public:
 		m->skip=false;
 		m->memp=0;
 		if(animate){
-			cout<<"\x1B[1J\x1B[1;1H";
+			cout<<"\x1B[1J";
+			moveto(0,0);
 			print();
+			inputy=code.size(); //input comes first line under the code in animation mode
 			outputx=0;
-			outputy=code.size()+1;
+			outputy=inputy+1; //output comes directly under the input line
 		}
 		while(execcommand(m));
 	}
