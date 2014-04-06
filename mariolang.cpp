@@ -5,10 +5,12 @@ This is an interpreter for the language by Tom Smeding.
 **********/
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <climits>
+#include <cmath>
 #include <termios.h>
 #include <unistd.h>
 
@@ -28,6 +30,7 @@ int debuglevel,animatedelay;
 bool animate,animateShowTape;
 
 template<class T>class negvector;
+class mario;
 
 char getch(){char b=0;struct termios o={0};fflush(stdout);if(tcgetattr(0,&o)<0)
 perror("tcsetattr()");o.c_lflag&=~ICANON;o.c_lflag&=~ECHO;o.c_cc[VMIN]=1;o.c_cc[
@@ -39,12 +42,7 @@ void moveto(int x,int y){
 	cout<<"\x1B["<<y+1<<";"<<x+1<<"H"<<flush;
 }
 
-void drawTape(negvector<int> &mem,int tapex){
-	static int minidx=INT_MIN,maxidx=INT_MIN;
-	/*if INT_MIN, then detect bounds
-	 *else, go draw stuff.
-	 */
-}
+int max(int a,int b){return a<b?b:a;}
 
 template<class T>class negvector{
 	vector<T> pos,neg;
@@ -57,15 +55,54 @@ public:
 	T& operator[](int idx){return idx<0?neg[-idx-1]:pos[idx];}
 };
 
-typedef struct{
+class mario{
+public:
 	int ipx,ipy,memp,dir;
 	bool walking,skip;
-}mario;
+};
 
 class Level{
+private:
 	negvector<int> memory;
 	vector<string> code;
 	int outputx,outputy,inputy,tapex;
+
+	void drawTape(mario *m){
+		static int minidx=-1,maxidx=-1;
+		static bool inited=false;
+		int i,intwidth;
+		if(!inited){
+			inited=true;
+			minidx=0;
+			maxidx=0;
+		}
+		if(m->memp<minidx)minidx=m->memp;
+		if(m->memp>maxidx)maxidx=m->memp;
+		intwidth=max(1+log10(minidx),log10(maxidx));
+		cout<<"\x1B[34m"<<flush; //blue
+		for(i=minidx;i<=maxidx;i++){
+			moveto(tapex,i-minidx);
+			cout<<"\x1B[0K"<<flush;
+			cout<<setw(intwidth)<<i<<(m->memp==i?'#':'.')<<' '<<memory[i]<<flush;
+		}
+		cout<<"\x1B[0m"<<flush;
+		moveto(outputx,outputy);
+	}
+
+	void animationFrameStart(int x,int y,char c){
+		moveto(x,y);
+		cout<<"\x1B[41;1m"<<c<<"\x1B[0m"<<flush;
+		moveto(outputx,outputy);
+	}
+
+	void animationFrameEnd(mario *m,int x,int y,char c){
+		usleep(animatedelay);
+		moveto(x,y);
+		cout<<c<<flush;
+		moveto(outputx,outputy);
+		if(animateShowTape)drawTape(m);
+	}
+
 public:
 	Level(void){Level(cin);}
 	Level(ifstream &cf){
@@ -138,9 +175,7 @@ public:
 		char c;
 		SHOW_DEBUG("ECS at "<<m->ipx<<","<<m->ipy<<": '"<<code[m->ipy][m->ipx]<<"'");
 		if(animate){
-			moveto(m->ipx,m->ipy);
-			cout<<"\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m"<<flush;
-			moveto(outputx,outputy);
+			animationFrameStart(m->ipx,m->ipy,code[m->ipy][m->ipx]);
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B[u"<<flush;
 		switch(code[m->ipy][m->ipx]){
@@ -230,11 +265,7 @@ public:
 			break;
 		}
 		if(animate){
-			usleep(animatedelay);
-			moveto(m->ipx,m->ipy);
-			cout<<code[m->ipy][m->ipx]<<flush;
-			moveto(outputx,outputy);
-			if(animateShowTape)drawTape(memory,tapex);
+			animationFrameEnd(m,m->ipx,m->ipy,code[m->ipy][m->ipx]);
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1+(code[m->ipy+1][m->ipx]=='^')<<";"<<m->ipx+1<<"H"<<code[m->ipy+(code[m->ipy+1][m->ipx]=='^')][m->ipx]<<"\x1B[u"<<flush;
 		return true;
@@ -271,7 +302,7 @@ int main(int argc,char **argv){
 		cerr<<"\t             2: Plus one debug line per command."<<endl;
 		cerr<<"\t             3: Frantic. Useless. Adds even more shit per executed command."<<endl;
 		cerr<<"\t-T        Show the \x1B[46mT\x1B[0mape in animation mode."<<endl;
-		cerr<<"\t-w usecs  Sets the time to \x1B[46mw\x1B[0mait between commands in microseconds if animating. Useless otherwise."<<endl;
+		cerr<<"\t-w msecs  Sets the time to \x1B[46mw\x1B[0mait between commands in milliseconds if animating. Useless otherwise."<<endl;
 		return 0;
 	}
 	debuglevel=0;
@@ -287,7 +318,7 @@ int main(int argc,char **argv){
 				if(argv[i][j]=='a')animate=true;
 				else if(argv[i][j]=='d'){debuglevel=strtol(argv[i+1],NULL,10);skipNextArg=true;}
 				else if(argv[i][j]=='T')animateShowTape=true;
-				else if(argv[i][j]=='w'){animatedelay=strtol(argv[i+1],NULL,10);skipNextArg=true;}
+				else if(argv[i][j]=='w'){animatedelay=strtol(argv[i+1],NULL,10)*1000;skipNextArg=true;}
 				else {cerr<<"Unrecognised option "<<argv[i][j]<<endl;return 0;}
 			}
 		} else {
