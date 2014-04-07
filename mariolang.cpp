@@ -78,7 +78,7 @@ private:
 		}
 		if(m->memp<minidx)minidx=m->memp;
 		if(m->memp>maxidx)maxidx=m->memp;
-		intwidth=max(1+log10(minidx),log10(maxidx));
+		intwidth=max(1+log10(-minidx),log10(maxidx))+1;
 		cout<<"\x1B[34m"<<flush; //blue
 		for(i=minidx;i<=maxidx;i++){
 			moveto(tapex,i-minidx);
@@ -136,15 +136,19 @@ public:
 		}
 		if(m->ipy==code.size()-1)ERROR_FALSE("Mario fell out of the world.");
 		if(code[m->ipy+1][m->ipx]=='#'&&!m->walking){
-			m->ipy--;
-			while(m->ipy!=0&&code[m->ipy][m->ipx]!='"'){
-				execcommandSingle(m);
-				m->ipy--;
-			}
-			m->ipy--;
-			if(m->ipy==-1){
-				while(m->ipy<(int)code.size()-1&&code[m->ipy+1][m->ipx]!='"')m->ipy++;
-				if(m->ipy==code.size()-1)ERROR_FALSE("Elevator without ending.");
+			int newipy=m->ipy;
+			while(newipy>0&&code[newipy][m->ipx]!='"')newipy--;
+			if(newipy>0){
+				newipy--;
+				for(m->ipy-=1;m->ipy>newipy+1;m->ipy--)execcommandSingle(m);
+				m->ipy=newipy;
+			} else {
+				newipy=m->ipy+2;
+				while(newipy<(int)code.size()&&code[newipy][m->ipx]!='"')newipy++;
+				if(newipy==code.size())ERROR_FALSE("Elevator without ending.");
+				newipy--;
+				for(m->ipy+=2;m->ipy<newipy;m->ipy++)execcommandSingle(m);
+				//now m->ipy == newipy
 			}
 		}
 		if(m->skip){
