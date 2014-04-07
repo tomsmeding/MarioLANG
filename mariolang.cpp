@@ -171,7 +171,7 @@ public:
 		return true;
 	}
 	bool execcommandSingle(mario *m){
-		int ret;
+		int num;
 		char c;
 		SHOW_DEBUG("ECS at "<<m->ipx<<","<<m->ipy<<": '"<<code[m->ipy][m->ipx]<<"'");
 		if(animate){
@@ -213,24 +213,46 @@ public:
 			} else putchar(memory[m->memp]);
 			break;
 		case ':':
-			ret=printf("%d ",memory[m->memp]);
-			if(ret<0)ERROR_FALSE("FATAL: IO error, printf returned a negative value!");
-			outputx+=ret;
+			num=printf("%d ",memory[m->memp]);
+			if(num<0)ERROR_FALSE("FATAL: IO error, printf returned a negative value!");
+			outputx+=num;
 			break;
 		case ',':
 			if(animate){
 				moveto(0,inputy);
-				cout<<"\x1B[34;1mInput?\x1B[0m "<<flush;
+				cout<<"\x1B[34mInput char?\x1B[0m "<<flush;
 			}
 			memory[m->memp]=getch();
 			if(animate){
 				cout<<"\x1B[2K"<<flush;
 				moveto(outputx,outputy);
 			}
-			SHOW_MESSAGE("Read input: char "<<memory[m->memp]);
+			SHOW_MESSAGE("Read input: char "<<(unsigned char)memory[m->memp]);
 			break;
 		case ';':
-			scanf("%d",&memory[m->memp]);
+			if(animate){
+				moveto(0,inputy);
+				cout<<"\x1B[34mInput number?\x1B[0m "<<flush;
+				c=getch();
+				num=0;
+				while(c!='\r'&&c!='\n'){
+					if(c>='0'&&c<='9'){
+						num=10*num+c-'0';
+						if(num>255)num/=10;
+						else cout<<c<<flush;
+					} else if(c==127&&num!=0){ //backspace
+						cout<<"\x1B[D \x1B[D"<<flush;
+						num/=10;
+					}
+					c=getch();
+				}
+				memory[m->memp]=num;
+				cout<<"\x1B[2K"<<flush;
+				moveto(outputx,outputy);
+			} else {
+				scanf("%d",&memory[m->memp]);
+			}
+			SHOW_MESSAGE("Read input: number "<<(int)memory[m->memp]);
 			break;
 		case '>':
 			m->dir=DIRRIGHT;
@@ -285,8 +307,11 @@ public:
 			print();
 			inputy=code.size(); //input comes first line under the code in animation mode
 			outputx=0;
-			outputy=inputy+1; //output comes directly under the input line
+			outputy=inputy+2; //output comes under the input line, under "Output:"
 			tapex=code[0].size()+1; //tape comes to the right of the code
+			moveto(0,outputy-1);
+			cout<<"\x1B[34;1mOutput:\x1B[0m"<<flush;
+			moveto(outputx,outputy);
 		}
 		while(execcommandStep(m));
 	}
