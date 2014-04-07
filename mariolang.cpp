@@ -211,14 +211,15 @@ public:
 				if(c=='\r')outputx=0;
 				else if(c=='\n'){outputx=0;outputy++;}
 				else if(c=='\t'){outputx=TABWIDTH*(outputx/TABWIDTH+1);}
-				else if(c<32){printf("^%c",'@'+c);outputx+=2;}
-				else if(c==127){printf("^?");outputx+=2;}
-				else {putchar(c);outputx++;}
-			} else putchar(memory[m->memp]);
+				else if(c<32){cout<<'^'<<'@'+c<<flush;outputx+=2;}
+				else if(c==127){cout<<"^?";outputx+=2;}
+				else {cout<<c;outputx++;}
+			} else cout<<(char)memory[m->memp];
 			break;
 		case ':':
 			num=printf("%d ",memory[m->memp]);
 			if(num<0)ERROR_FALSE("FATAL: IO error, printf returned a negative value!");
+			fflush(stdout);
 			outputx+=num;
 			break;
 		case ',':
@@ -242,8 +243,7 @@ public:
 				while(c!='\r'&&c!='\n'){
 					if(c>='0'&&c<='9'){
 						num=10*num+c-'0';
-						if(num>255)num/=10;
-						else cout<<c<<flush;
+						cout<<c<<flush;
 					} else if(c==127&&num!=0){ //backspace
 						cout<<"\x1B[D \x1B[D"<<flush;
 						num/=10;
