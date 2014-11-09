@@ -4,8 +4,6 @@
 This is an interpreter for the language by Tom Smeding.
 **********/
 
-#include <iostream>
-#include <iomanip>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -15,9 +13,9 @@ This is an interpreter for the language by Tom Smeding.
 #include <unistd.h>
 
 #define ERROR_FALSE(s) {SHOW_ERROR(s);return false;}
-#define SHOW_ERROR(s) {if(debuglevel>=1)cerr<<"\x1B[31m"<<s<<"\x1B[0m"<<endl;}
-#define SHOW_MESSAGE(s) {if(debuglevel>=2)cerr<<"\x1B[36m"<<s<<"\x1B[0m"<<endl;}
-#define SHOW_DEBUG(s) {if(debuglevel>=3)cerr<<"\x1B[37m"<<s<<"\x1B[0m"<<endl;}
+#define SHOW_ERROR(...) {if(debuglevel>=1){fprintf(stderr,"\x1B[31m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
+#define SHOW_MESSAGE(...) {if(debuglevel>=2){fprintf(stderr,"\x1B[36m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
+#define SHOW_DEBUG(...) {if(debuglevel>=3){fprintf(stderr,"\x1B[37m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
 #define DIRRIGHT (0)
 #define DIRUP (1)
 #define DIRLEFT (2)
@@ -39,7 +37,7 @@ VTIME]=0;if(tcsetattr(0,TCSANOW,&o)<0)perror("tcsetattr ICANON");if(read(0,&b,1)
 o)<0)perror("tcsetattr ~ICANON");return b;}
 
 void moveto(int x,int y){
-	cout<<"\x1B["<<y+1<<";"<<x+1<<"H"<<flush;
+	printf("\x1B[%d;%dH",y+1,x+1); fflush(stdout);
 }
 
 int max(int a,int b){return a<b?b:a;}
@@ -71,6 +69,7 @@ private:
 		static int minidx=-1,maxidx=-1;
 		static bool inited=false;
 		int i,intwidth;
+		char printf_format[20];
 		if(!inited){
 			inited=true;
 			minidx=0;
@@ -78,27 +77,30 @@ private:
 		}
 		if(m->memp<minidx)minidx=m->memp;
 		if(m->memp>maxidx)maxidx=m->memp;
-		intwidth=max(1+log10(-minidx),log10(maxidx))+1;
-		cout<<"\x1B[34m"<<flush; //blue
+		intwidth=max(1+log10(minidx==0?0.1:-minidx),log10(maxidx==0?1:maxidx))+1;
+		printf("\x1B[34m"); fflush(stdout); //blue
+		snprintf(printf_format,20,"%%%dd%%c %%d",intwidth);
+		// fprintf(stderr,"%s",printf_format);
+		// exit(0);
 		for(i=minidx;i<=maxidx;i++){
 			moveto(tapex,i-minidx);
-			cout<<"\x1B[0K"<<flush;
-			cout<<setw(intwidth)<<i<<(m->memp==i?'#':'.')<<' '<<memory[i]<<flush;
+			printf("\x1B[0K"); fflush(stdout);
+			printf(printf_format,i,m->memp==i?'#':'.',memory[i]); fflush(stdout);
 		}
-		cout<<"\x1B[0m"<<flush;
+		printf("\x1B[0m"); fflush(stdout);
 		moveto(outputx,outputy);
 	}
 
 	void animationFrameStart(int x,int y,char c){
 		moveto(x,y);
-		cout<<"\x1B[41;1m"<<c<<"\x1B[0m"<<flush;
+		printf("\x1B[41;1m%c\x1B[0m",c); fflush(stdout);
 		moveto(outputx,outputy);
 	}
 
 	void animationFrameEnd(mario *m,int x,int y,char c){
 		usleep(animatedelay);
 		moveto(x,y);
-		cout<<c<<flush;
+		printf("%c",c); fflush(stdout);
 		moveto(outputx,outputy);
 		if(animateShowTape)drawTape(m);
 	}
@@ -109,24 +111,24 @@ public:
 		code.resize(10); //some nice starting amount
 		int i,maxlen=0;
 		for(i=0;cf.good();i++){
-			if(i+1>code.size())code.resize(code.size()*2);
+			if(i+1>(int)code.size())code.resize(code.size()*2);
 			getline(cf,code[i]);
-			if(code[i].size()>maxlen)maxlen=code[i].size();
+			if((int)code[i].size()>maxlen)maxlen=code[i].size();
 		}
 		cf.close();
 		code.resize(i);
-		for(i=0;i<code.size();i++)code[i].resize(maxlen,' ');
+		for(i=0;i<(int)code.size();i++)code[i].resize(maxlen,' ');
 	}
 	void print(void){
 		vector<string>::const_iterator it;
-		for(it=code.begin();it!=code.end();it++)cout<<*it<<endl;
+		for(it=code.begin();it!=code.end();it++)printf("%s\n",it->c_str());
 	}
 	bool execcommandStep(mario *m){
-		SHOW_MESSAGE("EC\tinstr="<<code[m->ipy][m->ipx]<<"\tip="<<m->ipx<<","<<m->ipy<<"\tmemp="<<m->memp<<"\tmem[memp]="<<memory[m->memp]<<"\tdir="<<m->dir<<"\twalking="<<m->walking<<"\tskip="<<m->skip);
+		SHOW_MESSAGE("EC\tinstr=%c\tip=%d,%d\tmemp=%d\tmem[memp]=%d\tdir=%d\twalking=%d\tskip=%d",code[m->ipy][m->ipx],m->ipx,m->ipy,m->memp,memory[m->memp],m->dir,m->walking,m->skip);
 		/*if(m->ipx<0||m->ipx>=code[m->ipy].size()){
 			ERROR_FALSE("Mario walked out of the world.");
 		}*/
-		while(m->ipy<code.size()-1
+		while(m->ipy<(int)code.size()-1
 			&&code[m->ipy+1][m->ipx]!='='
 			&&code[m->ipy+1][m->ipx]!='|'
 			&&code[m->ipy+1][m->ipx]!='#'
@@ -134,7 +136,7 @@ public:
 			execcommandSingle(m);
 			m->ipy++;
 		}
-		if(m->ipy==code.size()-1)ERROR_FALSE("Mario fell out of the world.");
+		if(m->ipy==(int)code.size()-1)ERROR_FALSE("Mario fell out of the world.");
 		if(code[m->ipy+1][m->ipx]=='#'&&!m->walking){
 			int newipy=m->ipy;
 			while(newipy>0&&code[newipy][m->ipx]!='"')newipy--;
@@ -145,7 +147,7 @@ public:
 			} else {
 				newipy=m->ipy+2;
 				while(newipy<(int)code.size()&&code[newipy][m->ipx]!='"')newipy++;
-				if(newipy==code.size())ERROR_FALSE("Elevator without ending.");
+				if(newipy==(int)code.size())ERROR_FALSE("Elevator without ending.");
 				newipy--;
 				for(m->ipy+=2;m->ipy<newipy;m->ipy++)execcommandSingle(m);
 				//now m->ipy == newipy
@@ -154,7 +156,7 @@ public:
 		if(m->skip){
 			m->skip=false;
 			if(m->dir==DIRRIGHT){
-				if(m->ipx<code[m->ipy].size()-1)m->ipx++;
+				if(m->ipx<(int)code[m->ipy].size()-1)m->ipx++;
 				else ERROR_FALSE("Mario walked out of the world.");
 			} else if(m->dir==DIRLEFT){
 				if(m->ipx>0)m->ipx--;
@@ -164,7 +166,7 @@ public:
 			if(!execcommandSingle(m))return false;
 			if(m->walking){
 				if(m->dir==DIRRIGHT){
-					if(m->ipx<code[m->ipy].size()-1)m->ipx++;
+					if(m->ipx<(int)code[m->ipy].size()-1)m->ipx++;
 					else ERROR_FALSE("Mario walked out of the world.");
 				} else if(m->dir==DIRLEFT){
 					if(m->ipx>0)m->ipx--;
@@ -177,7 +179,7 @@ public:
 	bool execcommandSingle(mario *m){
 		int num;
 		char c;
-		SHOW_DEBUG("ECS at "<<m->ipx<<","<<m->ipy<<": '"<<code[m->ipy][m->ipx]<<"'");
+		SHOW_DEBUG("ECS at %d,%d: '%c'",m->ipx,m->ipy,code[m->ipy][m->ipx]);
 		if(animate){
 			animationFrameStart(m->ipx,m->ipy,code[m->ipy][m->ipx]);
 		}
@@ -211,10 +213,11 @@ public:
 				if(c=='\r')outputx=0;
 				else if(c=='\n'){outputx=0;outputy++;}
 				else if(c=='\t'){outputx=TABWIDTH*(outputx/TABWIDTH+1);}
-				else if(c<32){cout<<'^'<<'@'+c<<flush;outputx+=2;}
-				else if(c==127){cout<<"^?";outputx+=2;}
-				else {cout<<c;outputx++;}
-			} else cout<<(char)memory[m->memp];
+				else if(c>=0&&c<32){printf("^%c",'@'+c);outputx+=2;}
+				else if(c==127){printf("^?");outputx+=2;}
+				else {printf("%c",c);outputx++;}
+			} else printf("%c",(char)memory[m->memp]);
+			fflush(stdout);
 			break;
 		case ':':
 			num=printf("%d ",memory[m->memp]);
@@ -225,38 +228,38 @@ public:
 		case ',':
 			if(animate){
 				moveto(0,inputy);
-				cout<<"\x1B[34mInput char?\x1B[0m "<<flush;
+				printf("\x1B[34mInput char?\x1B[0m "); fflush(stdout);
 			}
 			memory[m->memp]=getch();
 			if(animate){
-				cout<<"\x1B[2K"<<flush;
+				printf("\x1B[2K"); fflush(stdout);
 				moveto(outputx,outputy);
 			}
-			SHOW_MESSAGE("Read input: char "<<(unsigned char)memory[m->memp]);
+			SHOW_MESSAGE("Read input: char %c",(unsigned char)memory[m->memp]);
 			break;
 		case ';':
 			if(animate){
 				moveto(0,inputy);
-				cout<<"\x1B[34mInput number?\x1B[0m "<<flush;
+				printf("\x1B[34mInput number?\x1B[0m "); fflush(stdout);
 				c=getch();
 				num=0;
 				while(c!='\r'&&c!='\n'){
 					if(c>='0'&&c<='9'){
 						num=10*num+c-'0';
-						cout<<c<<flush;
+						printf("%c",c); fflush(stdout);
 					} else if(c==127&&num!=0){ //backspace
-						cout<<"\x1B[D \x1B[D"<<flush;
+						printf("\x1B[D \x1B[D"); fflush(stdout);
 						num/=10;
 					}
 					c=getch();
 				}
 				memory[m->memp]=num;
-				cout<<"\x1B[2K"<<flush;
+				printf("\x1B[2K"); fflush(stdout);
 				moveto(outputx,outputy);
 			} else {
 				scanf("%d",&memory[m->memp]);
 			}
-			SHOW_MESSAGE("Read input: number "<<(int)memory[m->memp]);
+			SHOW_MESSAGE("Read input: number %d",(int)memory[m->memp]);
 			break;
 		case '>':
 			m->dir=DIRRIGHT;
@@ -273,7 +276,7 @@ public:
 				if(m->ipx==0)ERROR_FALSE("Mario walked out of the world.");
 			} else if(code[m->ipy][m->ipx]=='>'){
 				m->dir=DIRRIGHT;
-				if(m->ipx>=code[m->ipy].size())ERROR_FALSE("Mario walked out of the world.");
+				if(m->ipx>=(int)code[m->ipy].size())ERROR_FALSE("Mario walked out of the world.");
 			} else ERROR_FALSE("Mario is exhausted of jumping infinitely.");
 			m->walking=true;
 			break;
@@ -306,7 +309,7 @@ public:
 		m->skip=false;
 		m->memp=0;
 		if(animate){
-			cout<<"\x1B[1J";
+			printf("\x1B[1J");
 			moveto(0,0);
 			print();
 			inputy=code.size(); //input comes first line under the code in animation mode
@@ -314,7 +317,7 @@ public:
 			outputy=inputy+2; //output comes under the input line, under "Output:"
 			tapex=code[0].size()+1; //tape comes to the right of the code
 			moveto(0,outputy-1);
-			cout<<"\x1B[34;1mOutput:\x1B[0m"<<flush;
+			printf("\x1B[34;1mOutput:\x1B[0m"); fflush(stdout);
 			moveto(outputx,outputy);
 		}
 		while(execcommandStep(m));
@@ -323,15 +326,17 @@ public:
 
 int main(int argc,char **argv){
 	if(argc==1){
-		cerr<<"Usage: "<<argv[0]<<" [-a] [-d level] <file>"<<endl;
-		cerr<<"\t-a        Turn on \x1B[46ma\x1B[0mnimation mode."<<endl;
-		cerr<<"\t-d level  Set \x1B[46md\x1B[0mebug level to 'level', where 'level' can be:"<<endl;
-		cerr<<"\t             0: No debug output. Default."<<endl;
-		cerr<<"\t             1: Show errors."<<endl;
-		cerr<<"\t             2: Plus one debug line per command."<<endl;
-		cerr<<"\t             3: Frantic. Useless. Adds even more shit per executed command."<<endl;
-		cerr<<"\t-T        Show the \x1B[46mT\x1B[0mape in animation mode."<<endl;
-		cerr<<"\t-w msecs  Sets the time to \x1B[46mw\x1B[0mait between commands in milliseconds if animating. Useless otherwise."<<endl;
+		printf(
+		 "Usage: %s [-a] [-d level] <file>\n"
+		 "\t-a        Turn on \x1B[46ma\x1B[0mnimation mode.\n"
+		 "\t-d level  Set \x1B[46md\x1B[0mebug level to 'level', where 'level' can be:\n"
+		 "\t             0: No debug output. Default.\n"
+		 "\t             1: Show errors.\n"
+		 "\t             2: Plus one debug line per command.\n"
+		 "\t             3: Frantic. Useless. Adds even more shit per executed command.\n"
+		 "\t-T        Show the \x1B[46mT\x1B[0mape in animation mode.\n"
+		 "\t-w msecs  Sets the time to \x1B[46mw\x1B[0mait between commands in milliseconds if animating. Useless otherwise.\n"
+		 ,argv[0]);
 		return 0;
 	}
 	debuglevel=0;
@@ -348,18 +353,18 @@ int main(int argc,char **argv){
 				else if(argv[i][j]=='d'){debuglevel=strtol(argv[i+1],NULL,10);skipNextArg=true;}
 				else if(argv[i][j]=='T')animateShowTape=true;
 				else if(argv[i][j]=='w'){animatedelay=strtol(argv[i+1],NULL,10)*1000;skipNextArg=true;}
-				else {cerr<<"Unrecognised option "<<argv[i][j]<<endl;return 0;}
+				else {fprintf(stderr,"Unrecognised option %c\n",argv[i][j]);return 0;}
 			}
 		} else {
-			cerr<<"Unrecognised argument "<<argv[i]<<endl;
+			fprintf(stderr,"Unrecognised argument %s\n",argv[i]);
 			return 0;
 		}
 	}
 	ifstream cf; //CodeFile
 	cf.open(argv[argc-1]);
 	if(!cf.is_open()){
-		cerr<<"Could not open file '"<<argv[argc-1]<<"'"<<endl;
-		cerr<<"Run "<<argv[0]<<" without arguments for usage information."<<endl;
+		fprintf(stderr,"Could not open file '%s'\n",argv[argc-1]);
+		fprintf(stderr,"Run %s without arguments for usage information.\n",argv[0]);
 		return 0;
 	}
 	Level L(cf);
