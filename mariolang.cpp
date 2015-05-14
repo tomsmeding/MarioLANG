@@ -12,7 +12,9 @@ This is an interpreter for the language by Tom Smeding.
 #include <termios.h>
 #include <unistd.h>
 
+#define FATAL_FALSE(s) {SHOW_FATAL(s);return false;}
 #define ERROR_FALSE(s) {SHOW_ERROR(s);return false;}
+#define SHOW_FATAL(...) {if(debuglevel>=0){fprintf(stderr,"\x1B[31;1m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
 #define SHOW_ERROR(...) {if(debuglevel>=1){fprintf(stderr,"\x1B[31m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
 #define SHOW_MESSAGE(...) {if(debuglevel>=2){fprintf(stderr,"\x1B[36m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
 #define SHOW_DEBUG(...) {if(debuglevel>=3){fprintf(stderr,"\x1B[37m");fprintf(stderr,__VA_ARGS__);fprintf(stderr,"\x1B[0m\n");}}
@@ -124,6 +126,7 @@ public:
 		for(it=code.begin();it!=code.end();it++)printf("%s\n",it->c_str());
 	}
 	bool execcommandStep(mario *m){
+		static bool lastTurnWasStanding=false;
 		SHOW_MESSAGE("EC\tinstr=%c\tip=%d,%d\tmemp=%d\tmem[memp]=%d\tdir=%d\twalking=%d\tskip=%d",code[m->ipy][m->ipx],m->ipx,m->ipy,m->memp,memory[m->memp],m->dir,m->walking,m->skip);
 		/*if(m->ipx<0||m->ipx>=code[m->ipy].size()){
 			ERROR_FALSE("Mario walked out of the world.");
@@ -142,14 +145,14 @@ public:
 			while(newipy>0&&code[newipy][m->ipx]!='"')newipy--;
 			if(newipy>0){
 				newipy--;
-				for(m->ipy-=1;m->ipy>newipy+1;m->ipy--)execcommandSingle(m);
+				for(m->ipy-=1;m->ipy>newipy+1;m->ipy--)if(!execcommandSingle(m))return false;
 				m->ipy=newipy;
 			} else {
 				newipy=m->ipy+2;
 				while(newipy<(int)code.size()&&code[newipy][m->ipx]!='"')newipy++;
-				if(newipy==(int)code.size())ERROR_FALSE("Elevator without ending.");
+				if(newipy==(int)code.size())FATAL_FALSE("Elevator without ending.");
 				newipy--;
-				for(m->ipy+=2;m->ipy<newipy;m->ipy++)execcommandSingle(m);
+				for(m->ipy+=2;m->ipy<newipy;m->ipy++)if(!execcommandSingle(m))return false;
 				//now m->ipy == newipy
 			}
 		}
@@ -161,7 +164,7 @@ public:
 			} else if(m->dir==DIRLEFT){
 				if(m->ipx>0)m->ipx--;
 				else ERROR_FALSE("Mario walked out of the world.");
-			} else ERROR_FALSE("The world glitched.");
+			} else FATAL_FALSE("The world glitched.");
 		} else {
 			if(!execcommandSingle(m))return false;
 			if(m->walking){
@@ -171,7 +174,11 @@ public:
 				} else if(m->dir==DIRLEFT){
 					if(m->ipx>0)m->ipx--;
 					else ERROR_FALSE("Mario walked out of the world.");
-				} else ERROR_FALSE("Mario got tired of standing still.");
+				} else FATAL_FALSE("The world glitched!");
+				lastTurnWasStanding=false;
+			} else {
+				if(!lastTurnWasStanding)lastTurnWasStanding=true;
+				else ERROR_FALSE("Mario got tired of standing still.");
 			}
 		}
 		return true;
@@ -186,7 +193,7 @@ public:
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B[u"<<flush;
 		switch(code[m->ipy][m->ipx]){
 		case '=': case '|': case '#': case '"':
-			ERROR_FALSE("Mario somehow got stuck.");
+			FATAL_FALSE("Mario somehow got stuck.");
 		case ')':
 			m->memp++;
 			if(m->memp>memory.sizepos()-1){
