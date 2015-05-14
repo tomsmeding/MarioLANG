@@ -239,8 +239,10 @@ public:
 			if(animate){
 				moveto(0,inputy);
 				printf("\x1B[34mInput char?\x1B[0m "); fflush(stdout);
+				memory[m->memp]=getch();
+			} else {
+				memory[m->memp]=getchar();
 			}
-			memory[m->memp]=getch();
 			if(animate){
 				printf("\x1B[2K"); fflush(stdout);
 				moveto(outputx,outputy);
@@ -300,6 +302,9 @@ public:
 			if(m->dir==DIRRIGHT)m->dir=DIRLEFT;
 			else if(m->dir==DIRLEFT)m->dir=DIRRIGHT;
 			else ERROR_FALSE("The world glitched.");
+		case 'w':
+			animatedelay+=200000;
+			break;
 		default:
 			break;
 		}
@@ -339,7 +344,7 @@ Level *L;
 void signalhandler(int sig){
 	switch(sig){
 	case SIGINT:
-		moveto(L->getoutputx(),L->getoutputy());
+		if(animate)moveto(L->getoutputx(),L->getoutputy());
 		exit(2);
 	case SIGUSR1:
 		animatedelay+=100000; //100ms extra
