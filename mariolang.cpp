@@ -11,6 +11,7 @@ This is an interpreter for the language by Tom Smeding.
 #include <cmath>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define FATAL_FALSE(s) {SHOW_FATAL(s);return false;}
 #define ERROR_FALSE(s) {SHOW_ERROR(s);return false;}
@@ -121,6 +122,8 @@ public:
 		code.resize(i);
 		for(i=0;i<(int)code.size();i++)code[i].resize(maxlen,' ');
 	}
+	int getoutputx(void){return outputx;}
+	int getoutputy(void){return outputy;}
 	void print(void){
 		vector<string>::const_iterator it;
 		for(it=code.begin();it!=code.end();it++)printf("%s\n",it->c_str());
@@ -136,7 +139,7 @@ public:
 			&&code[m->ipy+1][m->ipx]!='|'
 			&&code[m->ipy+1][m->ipx]!='#'
 			&&code[m->ipy+1][m->ipx]!='"'){
-			execcommandSingle(m);
+			if(!execcommandSingle(m))return false;
 			m->ipy++;
 		}
 		if(m->ipy==(int)code.size()-1)ERROR_FALSE("Mario fell out of the world.");
@@ -331,12 +334,26 @@ public:
 	}
 };
 
+Level *L;
+
+void signalhandler(int sig){
+	switch(sig){
+	case SIGINT:
+		moveto(L->getoutputx(),L->getoutputy());
+		exit(2);
+	case SIGUSR1:
+		animatedelay+=100000; //100ms extra
+		break;
+	}
+}
+
 int main(int argc,char **argv){
 	if(argc==1){
 		printf(
 		 "Usage: %s [-a] [-d level] <file>\n"
 		 "\t-a        Turn on \x1B[46ma\x1B[0mnimation mode.\n"
 		 "\t-d level  Set \x1B[46md\x1B[0mebug level to 'level', where 'level' can be:\n"
+		 "\t            -1: No fatal errors.\n"
 		 "\t             0: No debug output. Default.\n"
 		 "\t             1: Show errors.\n"
 		 "\t             2: Plus one debug line per command.\n"
@@ -346,6 +363,8 @@ int main(int argc,char **argv){
 		 ,argv[0]);
 		return 0;
 	}
+	signal(SIGINT,signalhandler);
+	signal(SIGUSR1,signalhandler);
 	debuglevel=0;
 	animatedelay=250000;
 	animate=false;
@@ -374,7 +393,10 @@ int main(int argc,char **argv){
 		fprintf(stderr,"Run %s without arguments for usage information.\n",argv[0]);
 		return 0;
 	}
-	Level L(cf);
-	L.play();	
+	//Level L(cf);
+	//L.play();
+	L=new Level(cf);
+	L->play();
+	delete L;
 	return 0;
 }
