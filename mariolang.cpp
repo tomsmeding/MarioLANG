@@ -4,6 +4,7 @@
 This is an interpreter for the language by Tom Smeding.
 **********/
 
+#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -118,7 +119,7 @@ public:
 			getline(cf,code[i]);
 			if((int)code[i].size()>maxlen)maxlen=code[i].size();
 		}
-		cf.close();
+		if(cf!=cin)cf.close();
 		code.resize(i);
 		for(i=0;i<(int)code.size();i++)code[i].resize(maxlen,' ');
 	}
@@ -391,16 +392,18 @@ int main(int argc,char **argv){
 			return 0;
 		}
 	}
-	ifstream cf; //CodeFile
-	cf.open(argv[argc-1]);
-	if(!cf.is_open()){
-		fprintf(stderr,"Could not open file '%s'\n",argv[argc-1]);
-		fprintf(stderr,"Run %s without arguments for usage information.\n",argv[0]);
-		return 0;
+	if(strcmp(argv[argc-1],"-")==0){
+		L=new Level();
+	} else {
+		ifstream cf; //CodeFile
+		cf.open(argv[argc-1]);
+		if(!cf.is_open()){
+			fprintf(stderr,"Could not open file '%s'\n",argv[argc-1]);
+			fprintf(stderr,"Run %s without arguments for usage information.\n",argv[0]);
+			return 0;
+		}
+		L=new Level(cf);
 	}
-	//Level L(cf);
-	//L.play();
-	L=new Level(cf);
 	L->play();
 	delete L;
 	return 0;
