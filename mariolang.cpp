@@ -4,6 +4,8 @@
 This is an interpreter for the language by Tom Smeding.
 **********/
 
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <fstream>
 #include <vector>
