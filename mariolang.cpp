@@ -8,6 +8,8 @@ This is an interpreter for the language by Tom Smeding.
 #include <fstream>
 #include <vector>
 #include <string>
+#include <cstdlib>
+#include <cstring>
 #include <climits>
 #include <cmath>
 #include <termios.h>
@@ -119,7 +121,7 @@ public:
 			getline(cf,code[i]);
 			if((int)code[i].size()>maxlen)maxlen=code[i].size();
 		}
-		if(cf!=cin)cf.close();
+		if(&cf!=&cin)cf.close();
 		code.resize(i);
 		for(i=0;i<(int)code.size();i++)code[i].resize(maxlen,' ');
 	}
