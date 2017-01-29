@@ -36,7 +36,7 @@ bool animate,animateShowTape;
 template<class T>class negvector;
 class mario;
 
-char getch(){char b=0;struct termios o={0};fflush(stdout);if(tcgetattr(0,&o)<0)
+char getch(){char b=0;struct termios o={};fflush(stdout);if(tcgetattr(0,&o)<0)
 perror("tcsetattr()");o.c_lflag&=~ICANON;o.c_lflag&=~ECHO;o.c_cc[VMIN]=1;o.c_cc[
 VTIME]=0;if(tcsetattr(0,TCSANOW,&o)<0)perror("tcsetattr ICANON");if(read(0,&b,1)
 <0)perror("read()");o.c_lflag|=ICANON;o.c_lflag|=ECHO;if(tcsetattr(0,TCSADRAIN,&
