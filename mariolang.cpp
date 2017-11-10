@@ -162,30 +162,19 @@ public:
 				//now m->ipy == newipy
 			}
 		}
-		if(m->skip){
-			m->skip=false;
+		if(!execcommandSingle(m))return false;
+		if(m->walking){
 			if(m->dir==DIRRIGHT){
 				if(m->ipx<(int)code[m->ipy].size()-1)m->ipx++;
 				else ERROR_FALSE("Mario walked out of the world.");
 			} else if(m->dir==DIRLEFT){
 				if(m->ipx>0)m->ipx--;
 				else ERROR_FALSE("Mario walked out of the world.");
-			} else FATAL_FALSE("The world glitched.");
+			} else FATAL_FALSE("The world glitched!");
+			lastTurnWasStanding=false;
 		} else {
-			if(!execcommandSingle(m))return false;
-			if(m->walking){
-				if(m->dir==DIRRIGHT){
-					if(m->ipx<(int)code[m->ipy].size()-1)m->ipx++;
-					else ERROR_FALSE("Mario walked out of the world.");
-				} else if(m->dir==DIRLEFT){
-					if(m->ipx>0)m->ipx--;
-					else ERROR_FALSE("Mario walked out of the world.");
-				} else FATAL_FALSE("The world glitched!");
-				lastTurnWasStanding=false;
-			} else {
-				if(!lastTurnWasStanding)lastTurnWasStanding=true;
-				else ERROR_FALSE("Mario got tired of standing still.");
-			}
+			if(!lastTurnWasStanding)lastTurnWasStanding=true;
+			else ERROR_FALSE("Mario got tired of standing still.");
 		}
 		return true;
 	}
@@ -197,7 +186,12 @@ public:
 			animationFrameStart(m->ipx,m->ipy,code[m->ipy][m->ipx]);
 		}
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B[u"<<flush;
-		switch(code[m->ipy][m->ipx]){
+		char codechar=code[m->ipy][m->ipx];
+		if(m->skip){
+			codechar='\0';
+			m->skip=false;
+		}
+		switch(codechar){
 		case '=': case '|': case '#': case '"':
 			FATAL_FALSE("Mario somehow got stuck.");
 		case ')':
