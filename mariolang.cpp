@@ -299,6 +299,7 @@ public:
 			if(m->dir==DIRRIGHT)m->dir=DIRLEFT;
 			else if(m->dir==DIRLEFT)m->dir=DIRRIGHT;
 			else ERROR_FALSE("The world glitched.");
+			break;
 		case 'w':
 			animatedelay+=200000;
 			break;
