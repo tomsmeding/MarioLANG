@@ -188,8 +188,8 @@ public:
 		//if(animate)cout<<"\x1B[s\x1B["<<m->ipy+1<<";"<<m->ipx+1<<"H\x1B[41;1m"<<code[m->ipy][m->ipx]<<"\x1B[0m\x1B[u"<<flush;
 		char codechar=code[m->ipy][m->ipx];
 		if(m->skip){
+			if(strchr("=|#\")(+-.:,;><^![@w",codechar)!=NULL)m->skip=false;
 			codechar='\0';
-			m->skip=false;
 		}
 		switch(codechar){
 		case '=': case '|': case '#': case '"':
